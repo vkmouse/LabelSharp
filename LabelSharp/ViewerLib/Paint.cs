@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Threading.Tasks;
 
 namespace ViewerLib
 {
@@ -69,7 +68,7 @@ namespace ViewerLib
             // Resize with nearest neighbor interpolation
             byte* src = (byte*)srcBitmapData.Scan0;
             byte* dst = (byte*)dstBitmapData.Scan0;
-            for (int dstY = 0; dstY < dstRect.Height; dstY++)
+            Action<int> action = new Action<int>(dstY =>
             {
                 int srcY = (int)((double)dstY / dstRect.Height * srcRect.Height + srcRect.Y);
                 for (int dstX = 0; dstX < dstRect.Width; dstX++)
@@ -79,7 +78,8 @@ namespace ViewerLib
                     byte* dstPixel = dst + dstY * dstBitmapData.Stride + dstX * 4;
                     assignPixel(srcPixel, dstPixel);
                 }
-            }
+            });
+            Parallel.For(0, dstRect.Height, action);
 
             // UnLockBits
             srcImage.UnlockBits(srcBitmapData);
@@ -93,7 +93,8 @@ namespace ViewerLib
             unsafe
             {
                 byte* dst = (byte*)bmpData.Scan0;
-                for (int y = 0; y < bmpData.Height; y++)
+
+                Action<int> action = new Action<int>(y =>
                 {
                     for (int x = 0; x < bmpData.Width; x++)
                     {
@@ -103,7 +104,8 @@ namespace ViewerLib
                             *(dstPixel + 3) = alpha;
                         }
                     }
-                }
+                });
+                Parallel.For(0, bmpData.Height, action);
             }
             inputOutputImage.UnlockBits(bmpData);
         }

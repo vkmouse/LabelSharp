@@ -6,6 +6,7 @@ namespace ViewerLib
     // TODO: 1. 儲存 ROI 成各種格式
     // TODO: 2. 小地圖
     // TODO: 3. 標註模式輔助線
+    // TODO: 4. 更新 UML
 
     public class ViewerKernel : IKernel
     {
