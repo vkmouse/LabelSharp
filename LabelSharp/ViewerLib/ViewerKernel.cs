@@ -3,32 +3,26 @@ using System.Drawing;
 
 namespace ViewerLib
 {
-    // TODO: 1. Small Map
-    // TODO: 2. Interface for ViewerKernel
-    // TODO: 3. Cross 輔助線
-    // TODO: 4. 效能、不重開 (new) 記憶體更新影像
+    // TODO: 1. 儲存 ROI 成各種格式
+    // TODO: 2. 小地圖
+    // TODO: 3. 標註模式輔助線
 
-    public class ViewerKernel
+    public class ViewerKernel : IKernel
     {
-        private enum ZoomFactorType { 
-            ZOOM_FACTOR_TYPE_INC, 
-            ZOOM_FACTOR_TYPE_DEC, 
-            ZOOM_FACTOR_TYPE_FIT 
-        };
-
         private float zoomFactor;
         private Bitmap srcImage = null;
         private Bitmap dstImage = null;
         private RectangleF srcRect;
         private Rectangle dstRect;
-        private RectangleF? preSrcRect;
-        private Rectangle? preDstRect;
+        private RectangleF? preSrcRect = null;
+        private Rectangle? preDstRect = null;
         private PointF? panningFirstLocation = null;
 
         public ViewerKernel(Size size)
         {
             dstRect = new Rectangle(0, 0, size.Width, size.Height);
         }
+
         public Image image
         {
             get => GetImage();
@@ -39,35 +33,95 @@ namespace ViewerLib
                 srcImage = value as Bitmap;
                 preSrcRect = null;
                 preDstRect = null;
-                AdjustZoomFactor(ZoomFactorType.ZOOM_FACTOR_TYPE_FIT);
+                Zoom(OperateType.VIEWER_ZOOM_FIT);
             }
         }
-        public Image ZoomIn(Point location)
+
+        public virtual Image Operate(OperateType type, params object[] values)
         {
-            AdjustZoomFactor(ZoomFactorType.ZOOM_FACTOR_TYPE_INC);
-            PointF realLocation = ToRealLocationF(location);
-            srcRect.X = realLocation.X - dstRect.Width * 100 / zoomFactor * location.X / dstRect.Width;
-            srcRect.Y = realLocation.Y - dstRect.Height * 100 / zoomFactor * location.Y / dstRect.Height;
+            switch (type)
+            {
+                case OperateType.VIEWER_ZOOM_IN:
+                case OperateType.VIEWER_ZOOM_OUT:
+                    Zoom(type, (Point?)values[0]);
+                    break;
+
+                case OperateType.VIEWER_ZOOM_FIT:
+                    Zoom(type);
+                    break;
+
+                case OperateType.VIEWER_RESIZE:
+                    Resize((Size)values[0]);
+                    break;
+
+                case OperateType.VIEWER_PANNING_BEGIN:
+                case OperateType.VIEWER_PANNING_MOVE:
+                case OperateType.VIEWER_PANNING_END:
+                    Panning(type, (Point)values[0]);
+                    break;
+            }
+
             return image;
         }
-        public Image ZoomOut(Point location)
+
+        public virtual void Clear()
         {
-            AdjustZoomFactor(ZoomFactorType.ZOOM_FACTOR_TYPE_DEC);
-            PointF realLocation = ToRealLocationF(location);
-            srcRect.X = realLocation.X - dstRect.Width * 100 / zoomFactor * location.X / dstRect.Width;
-            srcRect.Y = realLocation.Y - dstRect.Height * 100 / zoomFactor * location.Y / dstRect.Height;
-            return image;
+            srcImage = dstImage = null;
+            preSrcRect = preDstRect = null;
+            panningFirstLocation = null;
+            return;
         }
-        public Image Resize(Size size)
+
+        private void Zoom(OperateType type, Point? location = null)
+        {
+            float minZoomFactor = Math.Max(1f / srcImage.Width * 100, 1f / srcImage.Width * 100);
+            float maxZoomFactor = 6400;
+
+            switch (type)
+            {
+                case OperateType.VIEWER_ZOOM_IN:
+                    zoomFactor *= 1.12f;
+                    break;
+                case OperateType.VIEWER_ZOOM_OUT:
+                    zoomFactor /= 1.12f;
+                    break;
+                case OperateType.VIEWER_ZOOM_FIT:
+                    float zoomFactorX = dstRect.Width / (float)srcImage.Width;
+                    float zoomFactorY = dstRect.Height / (float)srcImage.Height;
+                    zoomFactor = zoomFactorX > zoomFactorY ? zoomFactorY * 100 : zoomFactorX * 100;
+                    Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
+                    return;
+            }
+
+            // Adjust strategy in 100% to 500%
+            for (int i = 100; i <= 500; i = i + 100)
+                if (i * 0.9 < zoomFactor && zoomFactor < i * 1.1)
+                    zoomFactor = i;
+
+            // Adjust strategy 500% to Max
+            if (zoomFactor > 500)
+                zoomFactor = (float)Math.Round(zoomFactor / 100, 0) * 100;
+
+            // Limitation of zoom factor
+            zoomFactor = Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
+
+            // Offset to match previous location
+            Point _location = location ?? new Point(0, 0);
+            PointF realLocation = ToRealLocationF(_location);
+            srcRect.X = realLocation.X - dstRect.Width * 100 / zoomFactor * _location.X / dstRect.Width;
+            srcRect.Y = realLocation.Y - dstRect.Height * 100 / zoomFactor * _location.Y / dstRect.Height;
+        }
+
+        private void Resize(Size size)
         {
             dstRect = new Rectangle(0, 0, size.Width, size.Height);
-            return image;
         }
-        public Image Panning(Point location, bool isFirst = false, bool isLast = false)
+
+        private void Panning(OperateType type, Point location)
         {
             PointF realLocation = ToRealLocationF(location);
 
-            if (isFirst)
+            if (type is OperateType.VIEWER_PANNING_BEGIN)
             {
                 panningFirstLocation = realLocation;
             }
@@ -77,13 +131,11 @@ namespace ViewerLib
                 srcRect.X = srcRect.X + firstLocation.X - realLocation.X;
                 srcRect.Y = srcRect.Y + firstLocation.Y - realLocation.Y;
 
-                if (isLast)
+                if (type is OperateType.VIEWER_PANNING_END)
                 {
                     panningFirstLocation = null;
                 }
             }
-
-            return image;
         }
 
         protected PointF ToRealLocationF(Point location)
@@ -91,22 +143,26 @@ namespace ViewerLib
             return new PointF(srcRect.X + srcRect.Width *  location.X / dstRect.Width,
                               srcRect.Y + srcRect.Height * location.Y / dstRect.Height);
         }
+
         protected Point ToRealLocation(Point location)
         {
             return new Point((int)(srcRect.X + srcRect.Width * location.X / dstRect.Width),
                              (int)(srcRect.Y + srcRect.Height * location.Y / dstRect.Height));
         }
+
         protected Point ToWindowLocation(PointF location)
         {
             return new Point((int)((location.X - srcRect.X) * dstRect.Width / srcRect.Width),
                              (int)((location.Y - srcRect.Y) * dstRect.Height / srcRect.Height));
         }
+
         protected Rectangle ToWindowRect(RectangleF rect)
         {
             Point location = ToWindowLocation(rect.Location);
             Size size = new Size((int)(rect.Width * zoomFactor / 100), (int)(rect.Height * zoomFactor / 100));
             return new Rectangle(location, size);
         }
+
         protected virtual Image GetImage()
         {
             // Update srcRect
@@ -126,39 +182,6 @@ namespace ViewerLib
             }
 
             return dstImage.Clone(new Rectangle(0, 0, dstImage.Width, dstImage.Height), dstImage.PixelFormat);
-        }
-        private void AdjustZoomFactor(ZoomFactorType zoomFactorType)
-        {
-            float minZoomFactor = Math.Max(1f / srcImage.Width * 100, 1f / srcImage.Width * 100);
-            float maxZoomFactor = 6400;
-
-            switch (zoomFactorType)
-            {
-                case ZoomFactorType.ZOOM_FACTOR_TYPE_INC:
-                    zoomFactor *= 1.12f;
-                    break;
-                case ZoomFactorType.ZOOM_FACTOR_TYPE_DEC:
-                    zoomFactor /= 1.12f;
-                    break;
-                case ZoomFactorType.ZOOM_FACTOR_TYPE_FIT:
-                    float zoomFactorX = dstRect.Width / (float)srcImage.Width;
-                    float zoomFactorY = dstRect.Height / (float)srcImage.Height;
-                    zoomFactor = zoomFactorX > zoomFactorY ? zoomFactorY * 100 : zoomFactorX * 100;
-                    Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
-                    return;
-            }
-
-            // Adjust strategy in 100% to 500%
-            for (int i = 100; i <= 500; i = i + 100)
-                if (i * 0.9 < zoomFactor && zoomFactor < i * 1.1)
-                    zoomFactor = i;
-
-            // Adjust strategy 500% to Max
-            if (zoomFactor > 500)
-                zoomFactor = (float)Math.Round(zoomFactor / 100, 0) * 100;
-
-            // Limitation of zoom factor
-            zoomFactor = Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
         }
     }
 }

@@ -19,12 +19,51 @@ namespace ViewerLib
             rois = new List<Rectangle>();
         }
 
-        public Image Label(Point location, bool isFirst = false, bool isLast = false)
+        public override Image Operate(OperateType type, params object[] values)
+        {
+            base.Operate(type, values);
+
+            switch (type)
+            {
+                case OperateType.DETECTION_LABEL_BEGIN:
+                case OperateType.DETECTION_LABEL_MOVE:
+                case OperateType.DETECTION_LABEL_END:
+                    Label(type, (Point)values[0]);
+                    break;
+
+                case OperateType.DETECTION_SELECT_ROI:
+                    SelectRoi((Point)values[0]);
+                    break;
+
+                case OperateType.DETECTION_DELETE_ROI:
+                    DeleteSelectedRoi();
+                    break;
+
+                case OperateType.DETECTION_MOVE_ROI_BEGIN:
+                case OperateType.DETECTION_MOVE_ROI_MOVE:
+                case OperateType.DETECTION_MOVE_ROI_END:
+                    MoveSelectedRoi(type, (Point)values[0]);
+                    break;
+            }
+
+            return image;
+        }
+
+        public override void Clear()
+        {
+            base.Clear();
+            rois.Clear();
+            labelingRoi = null;
+            labelFirstLocation = moveRoiFirstLocation = null;
+            selectedIndex = -1;
+        }
+
+        private void Label(OperateType type, Point location)
         {
             Point realLocation = ToRealLocation(location);
             selectedIndex = -1;
 
-            if (isFirst)
+            if (type is OperateType.DETECTION_LABEL_BEGIN)
             {
                 labelFirstLocation = realLocation;
             }
@@ -36,7 +75,7 @@ namespace ViewerLib
                                             Math.Abs(firstLocation.X - realLocation.X) + 1,
                                             Math.Abs(firstLocation.Y - realLocation.Y) + 1);
 
-                if (isLast)
+                if (type is OperateType.DETECTION_LABEL_END)
                 {
                     rois.Add((Rectangle)labelingRoi);
                     selectedIndex = rois.Count - 1;
@@ -44,11 +83,9 @@ namespace ViewerLib
                     labelFirstLocation = null;
                 }
             }
-
-            return image;
         }
 
-        public Image SelectRoi(Point location)
+        private void SelectRoi(Point location)
         {
             Point realLocation = ToRealLocation(location);
             for (int i = 0; i < rois.Count; i++)
@@ -56,30 +93,26 @@ namespace ViewerLib
                 if (rois[i].Contains(realLocation))
                 {
                     selectedIndex = i;
-                    return image;
+                    return;
                 }
             }
             selectedIndex = -1;
-
-            return image;
         }
 
-        public Image DeleteSelectedRoi()
+        private void DeleteSelectedRoi()
         {
             if (selectedIndex >= 0 && rois.Count > selectedIndex)
                 rois.RemoveAt(selectedIndex);
             selectedIndex = -1;
-
-            return image;
         }
 
-        public Image MoveSelectedRoi(Point location, bool isFirst = false, bool isLast = false)
+        private void MoveSelectedRoi(OperateType type, Point location)
         {
             Point realLocation = ToRealLocation(location);
 
             if (0 <= selectedIndex && selectedIndex < rois.Count)
             {
-                if (isFirst && rois[selectedIndex].Contains(realLocation))
+                if (type is OperateType.DETECTION_MOVE_ROI_BEGIN && rois[selectedIndex].Contains(realLocation))
                 {
                     labelFirstLocation = rois[selectedIndex].Location;
                     moveRoiFirstLocation = realLocation;
@@ -95,21 +128,11 @@ namespace ViewerLib
                     rois[moveSelectedIndex] = roi;
                 }
             }
-            if (isLast)
+            if (type is OperateType.DETECTION_MOVE_ROI_END)
             {
                 labelFirstLocation = moveRoiFirstLocation = null;
                 moveSelectedIndex = -1;
             }
-
-            return image;
-        }
-
-        public void Clear()
-        {
-            rois.Clear();
-            labelingRoi = null;
-            labelFirstLocation = moveRoiFirstLocation = null;
-            selectedIndex = -1;
         }
 
         protected override Image GetImage()
