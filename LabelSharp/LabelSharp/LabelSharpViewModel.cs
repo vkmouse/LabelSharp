@@ -62,8 +62,8 @@ namespace LabelSharp
                     Path.GetExtension(files.Current) is ".jpg")
                 {
                     kernel.Clear();
-                    kernel.image = Image.FromFile(files.Current);
-                    pictureBox_Image = kernel.image;
+                    kernel.Image = Image.FromFile(files.Current);
+                    pictureBox_Image = kernel.Image;
                     break;
                 }
             } while (hasNext);

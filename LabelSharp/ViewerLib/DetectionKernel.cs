@@ -45,7 +45,7 @@ namespace ViewerLib
                     break;
             }
 
-            return image;
+            return Image;
         }
 
         public override void Clear()
@@ -137,6 +137,9 @@ namespace ViewerLib
         protected override Image GetImage()
         {
             Bitmap dstImage = base.GetImage() as Bitmap;
+            if (dstImage == null)
+                return null;
+
             Pen innerPen = new Pen(Color.FromArgb(234, 24, 33), 1);
             Pen outterPen = new Pen(Color.FromArgb(27, 29, 28), 3);
             byte alpha = 140;

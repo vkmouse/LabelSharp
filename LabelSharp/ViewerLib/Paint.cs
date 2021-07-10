@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace ViewerLib
 {
-    class Paint
+    public class Paint
     {
         private unsafe delegate void AssignPixel(byte* srcPixel, byte* dstPixel);
         public unsafe static Bitmap DrawImage(Bitmap srcImage, RectangleF srcRect, Rectangle dstRect)
@@ -45,7 +45,8 @@ namespace ViewerLib
                     byteOfPixel = 3;
                     assignPixel = delegate (byte* srcPixel, byte* dstPixel)
                     {
-                        *(int*)dstPixel = *(int*)srcPixel;
+                        for (int i = 0; i < 3; i++)
+                            *(dstPixel + i) = *(srcPixel + i);
                         *(dstPixel + 3) = 255;
                     };
                     break;
@@ -68,15 +69,23 @@ namespace ViewerLib
             // Resize with nearest neighbor interpolation
             byte* src = (byte*)srcBitmapData.Scan0;
             byte* dst = (byte*)dstBitmapData.Scan0;
+            int srcWidth = srcImage.Width;
+            int srcHeight = srcImage.Height;
             Action<int> action = new Action<int>(dstY =>
             {
                 int srcY = (int)((double)dstY / dstRect.Height * srcRect.Height + srcRect.Y);
-                for (int dstX = 0; dstX < dstRect.Width; dstX++)
+                if (0 <= srcY && srcY < srcHeight)
                 {
-                    int srcX = (int)((double)dstX / dstRect.Width * srcRect.Width + srcRect.X);
-                    byte* srcPixel = src + srcY * srcBitmapData.Stride + srcX * byteOfPixel;
-                    byte* dstPixel = dst + dstY * dstBitmapData.Stride + dstX * 4;
-                    assignPixel(srcPixel, dstPixel);
+                    for (int dstX = 0; dstX < dstRect.Width; dstX++)
+                    {
+                        int srcX = (int)((double)dstX / dstRect.Width * srcRect.Width + srcRect.X);
+                        if (0 <= srcX && srcX < srcWidth)
+                        {
+                            byte* srcPixel = src + srcY * srcBitmapData.Stride + srcX * byteOfPixel;
+                            byte* dstPixel = dst + dstY * dstBitmapData.Stride + dstX * 4;
+                            assignPixel(srcPixel, dstPixel);
+                        }
+                    }
                 }
             });
             Parallel.For(0, dstRect.Height, action);

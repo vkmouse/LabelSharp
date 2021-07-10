@@ -23,7 +23,7 @@ namespace ViewerLib
 
     public interface IKernel
     {
-        Image image { get; set; }
+        Image Image { get; set; }
         Image Operate(OperateType type, params object[] values);
         void Clear();
     }

@@ -10,31 +10,30 @@ namespace ViewerLib
 
     public class ViewerKernel : IKernel
     {
-        private float zoomFactor;
-        private Bitmap srcImage = null;
-        private Bitmap dstImage = null;
-        private RectangleF srcRect;
-        private Rectangle dstRect;
-        private RectangleF? preSrcRect = null;
-        private Rectangle? preDstRect = null;
-        private PointF? panningFirstLocation = null;
+        protected float ZoomFactor;
+        protected Bitmap SrcImage = null;
+        protected Bitmap DstImage = null;
+        protected RectangleF SrcRect;
+        protected Rectangle DstRect;
+        protected RectangleF? PreSrcRect = null;
+        protected Rectangle? PreDstRect = null;
+        private PointF? _panningFirstLocation = null;
 
         public ViewerKernel(Size size)
         {
-            dstRect = new Rectangle(0, 0, size.Width, size.Height);
+            DstRect = new Rectangle(0, 0, size.Width, size.Height);
         }
 
-        public Image image
+        public Image Image
         {
             get => GetImage();
             set
             {
-                if (srcImage != null)
-                    srcImage.Dispose();
-                srcImage = value as Bitmap;
-                preSrcRect = null;
-                preDstRect = null;
-                Zoom(OperateType.VIEWER_ZOOM_FIT);
+                if (SrcImage != null)
+                    SrcImage.Dispose();
+                SrcImage = value as Bitmap;
+                PreSrcRect = null;
+                PreDstRect = null;
             }
         }
 
@@ -62,60 +61,60 @@ namespace ViewerLib
                     break;
             }
 
-            return image;
+            return Image;
         }
 
         public virtual void Clear()
         {
-            srcImage = dstImage = null;
-            preSrcRect = preDstRect = null;
-            panningFirstLocation = null;
+            SrcImage = DstImage = null;
+            PreSrcRect = PreDstRect = null;
+            _panningFirstLocation = null;
             return;
         }
 
         private void Zoom(OperateType type, Point? location = null)
         {
-            float minZoomFactor = Math.Max(1f / srcImage.Width * 100, 1f / srcImage.Width * 100);
+            float minZoomFactor = Math.Max(1f / SrcImage.Width * 100, 1f / SrcImage.Width * 100);
             float maxZoomFactor = 6400;
 
             switch (type)
             {
                 case OperateType.VIEWER_ZOOM_IN:
-                    zoomFactor *= 1.12f;
+                    ZoomFactor *= 1.12f;
                     break;
                 case OperateType.VIEWER_ZOOM_OUT:
-                    zoomFactor /= 1.12f;
+                    ZoomFactor /= 1.12f;
                     break;
                 case OperateType.VIEWER_ZOOM_FIT:
-                    float zoomFactorX = dstRect.Width / (float)srcImage.Width;
-                    float zoomFactorY = dstRect.Height / (float)srcImage.Height;
-                    zoomFactor = zoomFactorX > zoomFactorY ? zoomFactorY * 100 : zoomFactorX * 100;
-                    Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
+                    float zoomFactorX = DstRect.Width / (float)SrcImage.Width;
+                    float zoomFactorY = DstRect.Height / (float)SrcImage.Height;
+                    ZoomFactor = zoomFactorX > zoomFactorY ? zoomFactorY * 100 : zoomFactorX * 100;
+                    Math.Min(Math.Max(ZoomFactor, minZoomFactor), maxZoomFactor);
                     return;
             }
 
             // Adjust strategy in 100% to 500%
             for (int i = 100; i <= 500; i = i + 100)
-                if (i * 0.9 < zoomFactor && zoomFactor < i * 1.1)
-                    zoomFactor = i;
+                if (i * 0.9 < ZoomFactor && ZoomFactor < i * 1.1)
+                    ZoomFactor = i;
 
             // Adjust strategy 500% to Max
-            if (zoomFactor > 500)
-                zoomFactor = (float)Math.Round(zoomFactor / 100, 0) * 100;
+            if (ZoomFactor > 500)
+                ZoomFactor = (float)Math.Round(ZoomFactor / 100, 0) * 100;
 
             // Limitation of zoom factor
-            zoomFactor = Math.Min(Math.Max(zoomFactor, minZoomFactor), maxZoomFactor);
+            ZoomFactor = Math.Min(Math.Max(ZoomFactor, minZoomFactor), maxZoomFactor);
 
             // Offset to match previous location
             Point _location = location ?? new Point(0, 0);
             PointF realLocation = ToRealLocationF(_location);
-            srcRect.X = realLocation.X - dstRect.Width * 100 / zoomFactor * _location.X / dstRect.Width;
-            srcRect.Y = realLocation.Y - dstRect.Height * 100 / zoomFactor * _location.Y / dstRect.Height;
+            SrcRect.X = realLocation.X - DstRect.Width * 100 / ZoomFactor * _location.X / DstRect.Width;
+            SrcRect.Y = realLocation.Y - DstRect.Height * 100 / ZoomFactor * _location.Y / DstRect.Height;
         }
 
         private void Resize(Size size)
         {
-            dstRect = new Rectangle(0, 0, size.Width, size.Height);
+            DstRect = new Rectangle(0, 0, size.Width, size.Height);
         }
 
         private void Panning(OperateType type, Point location)
@@ -124,65 +123,68 @@ namespace ViewerLib
 
             if (type is OperateType.VIEWER_PANNING_BEGIN)
             {
-                panningFirstLocation = realLocation;
+                _panningFirstLocation = realLocation;
             }
-            else if (panningFirstLocation != null)
+            else if (_panningFirstLocation != null)
             {
-                PointF firstLocation = (PointF)panningFirstLocation;
-                srcRect.X = srcRect.X + firstLocation.X - realLocation.X;
-                srcRect.Y = srcRect.Y + firstLocation.Y - realLocation.Y;
+                PointF firstLocation = (PointF)_panningFirstLocation;
+                SrcRect.X = SrcRect.X + firstLocation.X - realLocation.X;
+                SrcRect.Y = SrcRect.Y + firstLocation.Y - realLocation.Y;
 
                 if (type is OperateType.VIEWER_PANNING_END)
                 {
-                    panningFirstLocation = null;
+                    _panningFirstLocation = null;
                 }
             }
         }
 
         protected PointF ToRealLocationF(Point location)
         {
-            return new PointF(srcRect.X + srcRect.Width *  location.X / dstRect.Width,
-                              srcRect.Y + srcRect.Height * location.Y / dstRect.Height);
+            return new PointF(SrcRect.X + SrcRect.Width *  location.X / DstRect.Width,
+                              SrcRect.Y + SrcRect.Height * location.Y / DstRect.Height);
         }
 
         protected Point ToRealLocation(Point location)
         {
-            return new Point((int)(srcRect.X + srcRect.Width * location.X / dstRect.Width),
-                             (int)(srcRect.Y + srcRect.Height * location.Y / dstRect.Height));
+            return new Point((int)(SrcRect.X + SrcRect.Width * location.X / DstRect.Width),
+                             (int)(SrcRect.Y + SrcRect.Height * location.Y / DstRect.Height));
         }
 
         protected Point ToWindowLocation(PointF location)
         {
-            return new Point((int)((location.X - srcRect.X) * dstRect.Width / srcRect.Width),
-                             (int)((location.Y - srcRect.Y) * dstRect.Height / srcRect.Height));
+            return new Point((int)((location.X - SrcRect.X) * DstRect.Width / SrcRect.Width),
+                             (int)((location.Y - SrcRect.Y) * DstRect.Height / SrcRect.Height));
         }
 
         protected Rectangle ToWindowRect(RectangleF rect)
         {
             Point location = ToWindowLocation(rect.Location);
-            Size size = new Size((int)(rect.Width * zoomFactor / 100), (int)(rect.Height * zoomFactor / 100));
+            Size size = new Size((int)(rect.Width * ZoomFactor / 100), (int)(rect.Height * ZoomFactor / 100));
             return new Rectangle(location, size);
         }
 
         protected virtual Image GetImage()
         {
+            if (SrcImage == null)
+                return null;
+
             // Update srcRect
-            srcRect.Width = dstRect.Width * 100 / zoomFactor;
-            srcRect.Height = dstRect.Height * 100 / zoomFactor;
-            srcRect.X = Math.Max(Math.Min(srcRect.X, srcImage.Width - srcRect.Width), 0);
-            srcRect.Y = Math.Max(Math.Min(srcRect.Y, srcImage.Height - srcRect.Height), 0);
+            SrcRect.Width = DstRect.Width * 100 / ZoomFactor;
+            SrcRect.Height = DstRect.Height * 100 / ZoomFactor;
+            SrcRect.X = Math.Max(Math.Min(SrcRect.X, SrcImage.Width - SrcRect.Width), 0);
+            SrcRect.Y = Math.Max(Math.Min(SrcRect.Y, SrcImage.Height - SrcRect.Height), 0);
 
             // Update dstImage
-            if (dstImage == null || preSrcRect != srcRect || preDstRect != dstRect)
+            if (DstImage == null || PreSrcRect != SrcRect || PreDstRect != DstRect)
             {
-                if (dstImage != null)
-                    dstImage.Dispose();
-                dstImage = Paint.DrawImage(srcImage, srcRect, dstRect);
-                preSrcRect = srcRect;
-                preDstRect = dstRect;
+                if (DstImage != null)
+                    DstImage.Dispose();
+                DstImage = Paint.DrawImage(SrcImage, SrcRect, DstRect);
+                PreSrcRect = SrcRect;
+                PreDstRect = DstRect;
             }
 
-            return dstImage.Clone(new Rectangle(0, 0, dstImage.Width, dstImage.Height), dstImage.PixelFormat);
+            return DstImage.Clone(new Rectangle(0, 0, DstImage.Width, DstImage.Height), DstImage.PixelFormat);
         }
     }
 }
