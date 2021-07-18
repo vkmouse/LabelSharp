@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Collections.Generic;
+using System.Drawing.Imaging;
 
 namespace ViewerLib
 {
@@ -55,6 +56,16 @@ namespace ViewerLib
             labelingRoi = null;
             labelFirstLocation = moveRoiFirstLocation = null;
             selectedIndex = -1;
+        }
+
+        public List<DetectionUnit> GetBndBoxes()
+        {
+            List<DetectionUnit> bboxes = new List<DetectionUnit>();
+            for (int i = 0; i < rois.Count; i++)
+            {
+                bboxes.Add(new DetectionUnit(rois[i], "test"));
+            }
+            return bboxes;
         }
 
         private void Label(OperateType type, Point location)

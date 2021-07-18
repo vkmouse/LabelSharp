@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -15,6 +16,7 @@ namespace LabelSharp
         private LabelSharpView view;
         private IKernel kernel;
         private LabelMode mode;
+        private Image _srcImage;
 
         // For demo variable
         private string path = $"C:\\Users\\{Environment.UserName}\\Pictures";
@@ -62,7 +64,10 @@ namespace LabelSharp
                     Path.GetExtension(files.Current) is ".jpg")
                 {
                     kernel.Clear();
-                    kernel.Image = Image.FromFile(files.Current);
+                    if (_srcImage != null)
+                        _srcImage.Dispose();
+                        _srcImage = Image.FromFile(files.Current);
+                    kernel.Image = _srcImage;
                     pictureBox_Image = kernel.Image;
                     break;
                 }
@@ -183,13 +188,28 @@ namespace LabelSharp
         {
             if (e.KeyData == (Keys.S | Keys.Control))
             {
-                MessageBox.Show("Ctrl+S");
+                Save();
             }
             else if (e.KeyData == Keys.Delete)
             {
                 pictureBox_Image = kernel.Operate(OperateType.DETECTION_DELETE_ROI);
                 view.pictureBox.Refresh();
             }
+        }
+
+        private void Save()
+        {
+            DetectionFileInfo info = new DetectionFileInfo()
+            {
+                imageWidth = _srcImage.Width,
+                imageHeight = _srcImage.Height,
+                imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
+                bboxes = (kernel as DetectionKernel).GetBndBoxes()
+            };
+            info.imagePath = files.Current;
+            info.saveDir = Path.GetDirectoryName(files.Current);
+            DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
+            DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
         }
     }
 }

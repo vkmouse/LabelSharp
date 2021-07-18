@@ -46,7 +46,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DetectionFile.cs" />
+    <Compile Include="DetectionFileInfo.cs" />
     <Compile Include="DetectionKernel.cs" />
+    <Compile Include="DetectionUnit.cs" />
     <Compile Include="IKernel.cs" />
     <Compile Include="Paint.cs" />
     <Compile Include="ViewerKernel.cs" />
