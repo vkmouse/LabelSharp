@@ -34,6 +34,7 @@ namespace ViewerLib
                 SrcImage = value as Bitmap;
                 PreSrcRect = null;
                 PreDstRect = null;
+                Zoom(OperateType.VIEWER_ZOOM_FIT);
             }
         }
 
