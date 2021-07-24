@@ -130,11 +130,13 @@ namespace LabelSharp
                     mode = LabelMode.LABEL_MODE_VIEW;
                     pictureBox_Image = kernel.Operate(OperateType.DETECTION_LABEL_END, e.Location);
 
+                    bool isCancel = LabelWindowView.Show(view.PointToScreen(view.pictureBox.Location) + (Size)e.Location);
+                    if (isCancel)
+                        pictureBox_Image = kernel.Operate(OperateType.DETECTION_DELETE_ROI);
                 }
                 else if (Control.ModifierKeys == Keys.Control)
                 {
                     pictureBox_Image = kernel.Operate(OperateType.DETECTION_MOVE_ROI_END, e.Location);
-
                 }
                 else
                 {

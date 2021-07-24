@@ -89,10 +89,20 @@
       <DependentUpon>LabelSharpView.cs</DependentUpon>
     </Compile>
     <Compile Include="LabelSharpViewModel.cs" />
+    <Compile Include="LabelWindowView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="LabelWindowView.Designer.cs">
+      <DependentUpon>LabelWindowView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="LabelWindowViewModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="LabelSharpView.resx">
       <DependentUpon>LabelSharpView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LabelWindowView.resx">
+      <DependentUpon>LabelWindowView.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
