@@ -96,12 +96,16 @@ namespace ViewerLib
 
             return dstImage;
         }
-        public unsafe static void DrawTransparent(ref Bitmap inputOutputImage, Rectangle region, byte alpha, bool isInside = true)
+        public unsafe static void DrawTransparent(ref Bitmap inputOutputImage, Rectangle region, Color overlapColor, bool isInside = true)
         {
             BitmapData bmpData = inputOutputImage.LockBits(new Rectangle(0, 0, inputOutputImage.Width, inputOutputImage.Height), ImageLockMode.ReadWrite, inputOutputImage.PixelFormat);
             unsafe
             {
                 byte* dst = (byte*)bmpData.Scan0;
+                int A = 255 - overlapColor.A;
+                int R = overlapColor.R * overlapColor.A;
+                int G = overlapColor.G * overlapColor.A;
+                int B = overlapColor.B * overlapColor.A;
 
                 Action<int> action = new Action<int>(y =>
                 {
@@ -110,7 +114,10 @@ namespace ViewerLib
                         if (region.Contains(new Point(x, y)) == isInside)
                         {
                             byte* dstPixel = dst + y * bmpData.Stride + x * 4;
-                            *(dstPixel + 3) = alpha;
+                            int r = (*(dstPixel + 2) * A + R) / 255;
+                            int g = (*(dstPixel + 1) * A + G) / 255;
+                            int b = (*(dstPixel + 0) * A + B) / 255;
+                            *(int*)dstPixel = Color.FromArgb(r, g, b).ToArgb();
                         }
                     }
                 });

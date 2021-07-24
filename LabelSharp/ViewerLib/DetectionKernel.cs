@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Drawing;
 using System.Collections.Generic;
-using System.Drawing.Imaging;
+using System.Text;
+using System.Security.Cryptography;
 
 namespace ViewerLib
 {
@@ -13,6 +14,12 @@ namespace ViewerLib
         private Point? moveRoiFirstLocation = null;
         private int selectedIndex;
         private int moveSelectedIndex;
+
+        private int _penWidth = 3;
+        private Font _font = new Font("Arial", 12);
+        private int _fontHeight = 16;
+        private Color _overlapColor = Color.FromArgb(150, 0, 127, 255);
+        private Dictionary<string, Tuple<Color, Color>> _borderAndStringColors;
 
         public DetectionKernel(Size size) : base(size)
         {
@@ -86,7 +93,7 @@ namespace ViewerLib
 
                 if (type is OperateType.DETECTION_LABEL_END)
                 {
-                    bboxes.Add(new DetectionUnit((Rectangle)labelingRoi, ""));
+                    bboxes.Add(new DetectionUnit((Rectangle)labelingRoi, " "));
                     selectedIndex = bboxes.Count - 1;
                     labelingRoi = null;
                     labelFirstLocation = null;
@@ -155,54 +162,94 @@ namespace ViewerLib
             if (dstImage == null)
                 return null;
 
-            Pen innerPen = new Pen(Color.FromArgb(234, 24, 33), 1);
-            Pen outterPen = new Pen(Color.FromArgb(27, 29, 28), 3);
-            byte alpha = 140;
-
             // Draw rectangle
-            using (Graphics g = Graphics.FromImage(dstImage))
-            {
-                foreach (DetectionUnit box in bboxes)
-                {
-                    Rectangle roi = box.Rect;
-                    g.DrawRectangle(outterPen, ToWindowRect(roi));
-                    g.DrawRectangle(innerPen, ToWindowRect(roi));
-                }
-
-                // Draw labeling rectangle
-                if (labelingRoi != null)
-                {
-                    g.DrawRectangle(outterPen, ToWindowRect((Rectangle)labelingRoi));
-                    g.DrawRectangle(innerPen, ToWindowRect((Rectangle)labelingRoi));
-                }
-            }
+            DrawBndBoxes(ref dstImage);
 
             // Draw labeling transparent
             if (labelingRoi != null)
             {
-                Rectangle windowRect = ToWindowRect((Rectangle)labelingRoi);
-                Paint.DrawTransparent(ref dstImage, windowRect, alpha, isInside: false);
+                DrawLabelingRoi(ref dstImage);
             }
 
             // Draw selected roi transparent
             if (selectedIndex >= 0 && bboxes.Count > selectedIndex)
             {
-                int top, bottom, left, right;
-                Rectangle windowRect = ToWindowRect(bboxes[selectedIndex].Rect);
-
-                right = Math.Min(Math.Max(windowRect.Right, 1), dstImage.Width);
-                bottom = Math.Min(Math.Max(windowRect.Bottom, 1), dstImage.Height);
-                top = Math.Max(Math.Min(windowRect.Top, bottom - 1), 0);
-                left = Math.Max(Math.Min(windowRect.Left, right - 1), 0);
-
-                if (top > dstImage.Width || left > dstImage.Width || bottom < 0 || right < 0)
-                    return dstImage;
-
-                windowRect = new Rectangle(left, top, right - left, bottom - top);
-                Paint.DrawTransparent(ref dstImage, windowRect, alpha, isInside: true);
+                DrawSelectedRoi(ref dstImage);
             }
 
             return dstImage;
+        }
+
+        private void DrawBndBoxes(ref Bitmap inputOutputImage)
+        {
+            if (_borderAndStringColors == null)
+                _borderAndStringColors = new Dictionary<string, Tuple<Color, Color>>();
+
+            // Prepare boader and string color
+            foreach (DetectionUnit box in bboxes)
+            {
+                if (_borderAndStringColors.ContainsKey(box.ClassName))
+                    continue;
+
+                int argb = 1;
+                foreach (int value in new MD5CryptoServiceProvider().ComputeHash(Encoding.UTF8.GetBytes(box.ClassName)))
+                {
+                    argb = (int)(argb * (value + 1) | 0xFF000000);
+                }
+
+                Color borderColor = Color.FromArgb(argb);
+                Color stringColor = borderColor.GetBrightness() > 0.6 ? Color.Black : Color.White;
+                _borderAndStringColors.Add(box.ClassName, new Tuple<Color, Color>(borderColor, stringColor));
+            }
+
+            // Draw rectangle
+            using (Graphics g = Graphics.FromImage(inputOutputImage))
+            {
+                foreach (DetectionUnit box in bboxes)
+                {
+                    Color borderColor = _borderAndStringColors[box.ClassName].Item1;
+                    Color stringColor = _borderAndStringColors[box.ClassName].Item2;
+
+                    Rectangle roi = ToWindowRect(box.Rect);
+                    g.DrawRectangle(new Pen(borderColor, _penWidth), roi);
+                    g.FillRectangle(new SolidBrush(borderColor), roi.X - _penWidth / 2, roi.Y - _fontHeight, roi.Width + _penWidth, _fontHeight);
+                    g.DrawString(box.ClassName, _font, new SolidBrush(stringColor), roi.X, roi.Y - _fontHeight);
+                }
+            }
+        }
+
+        private void DrawLabelingRoi(ref Bitmap inputOutputImage)
+        {
+            // Draw labeling rectangle
+            using (Graphics g = Graphics.FromImage(inputOutputImage))
+            {
+                g.DrawRectangle(new Pen(Color.Black, _penWidth), ToWindowRect((Rectangle)labelingRoi));
+            }
+
+            // Draw labeling transparent
+            Rectangle windowRect = ToWindowRect((Rectangle)labelingRoi);
+            windowRect.Location = windowRect.Location - new Size((int)Math.Round(_penWidth / 2f) - 1, (int)Math.Round(_penWidth / 2f) - 1);
+            windowRect.Size = windowRect.Size + new Size(_penWidth, _penWidth);
+            Paint.DrawTransparent(ref inputOutputImage, windowRect, _overlapColor, isInside: false);
+        }
+    
+        private void DrawSelectedRoi(ref Bitmap inputOutputImage)
+        {
+            // Check transparent region
+            Rectangle windowRect = ToWindowRect(bboxes[selectedIndex].Rect);
+            int right = Math.Min(Math.Max(windowRect.Right, 1), inputOutputImage.Width);
+            int bottom = Math.Min(Math.Max(windowRect.Bottom, 1), inputOutputImage.Height);
+            int top = Math.Max(Math.Min(windowRect.Top, bottom - 1), 0);
+            int left = Math.Max(Math.Min(windowRect.Left, right - 1), 0);
+            if (top > inputOutputImage.Height || left > inputOutputImage.Width || bottom < 0 || right < 0)
+                return;
+
+            // Draw transparent
+            windowRect = new Rectangle(x: left + (int)Math.Round(_penWidth / 2f),
+                                       y: top + (int)Math.Round(_penWidth / 2f),
+                                       width: right - left - _penWidth,
+                                       height: bottom - top - _penWidth);
+            Paint.DrawTransparent(ref inputOutputImage, windowRect, _overlapColor, isInside: true);
         }
     }
 }
