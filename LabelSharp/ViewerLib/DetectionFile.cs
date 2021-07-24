@@ -71,7 +71,7 @@ namespace ViewerLib
                             AppendChildNameText(bndbox, "xmin", bbox.XMin.ToString());
                             AppendChildNameText(bndbox, "ymin", bbox.YMin.ToString());
                             AppendChildNameText(bndbox, "xmax", bbox.XMax.ToString());
-                            AppendChildNameText(bndbox, "ymax", bbox.XMax.ToString());
+                            AppendChildNameText(bndbox, "ymax", bbox.YMax.ToString());
                         }
                     }
                 }

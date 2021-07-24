@@ -18,7 +18,8 @@ namespace ViewerLib
         DETECTION_DELETE_ROI,
         DETECTION_MOVE_ROI_BEGIN,
         DETECTION_MOVE_ROI_MOVE,
-        DETECTION_MOVE_ROI_END
+        DETECTION_MOVE_ROI_END,
+        DETECTION_RENAME_ROI
     }
 
     public interface IKernel

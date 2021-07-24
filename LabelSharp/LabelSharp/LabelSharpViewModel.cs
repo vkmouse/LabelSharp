@@ -132,7 +132,13 @@ namespace LabelSharp
 
                     bool isCancel = LabelWindowView.Show(view.PointToScreen(view.pictureBox.Location) + (Size)e.Location);
                     if (isCancel)
+                    {
                         pictureBox_Image = kernel.Operate(OperateType.DETECTION_DELETE_ROI);
+                    }
+                    else
+                    {
+                        pictureBox_Image = kernel.Operate(OperateType.DETECTION_RENAME_ROI, LabelWindowView.ClassName);
+                    }
                 }
                 else if (Control.ModifierKeys == Keys.Control)
                 {

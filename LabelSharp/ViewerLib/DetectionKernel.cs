@@ -7,7 +7,7 @@ namespace ViewerLib
 {
     public class DetectionKernel : ViewerKernel
     {
-        private List<Rectangle> rois;
+        private List<DetectionUnit> bboxes;
         private Rectangle? labelingRoi = null;
         private Point? labelFirstLocation = null;
         private Point? moveRoiFirstLocation = null;
@@ -16,7 +16,7 @@ namespace ViewerLib
 
         public DetectionKernel(Size size) : base(size)
         {
-            rois = new List<Rectangle>();
+            bboxes = new List<DetectionUnit>();
         }
 
         public override Image Operate(OperateType type, params object[] values)
@@ -44,6 +44,10 @@ namespace ViewerLib
                 case OperateType.DETECTION_MOVE_ROI_END:
                     MoveSelectedRoi(type, (Point)values[0]);
                     break;
+
+                case OperateType.DETECTION_RENAME_ROI:
+                    RenameSelectedRoi((string)values[0]);
+                    break;
             }
 
             return Image;
@@ -52,7 +56,7 @@ namespace ViewerLib
         public override void Clear()
         {
             base.Clear();
-            rois.Clear();
+            bboxes.Clear();
             labelingRoi = null;
             labelFirstLocation = moveRoiFirstLocation = null;
             selectedIndex = -1;
@@ -60,11 +64,6 @@ namespace ViewerLib
 
         public List<DetectionUnit> GetBndBoxes()
         {
-            List<DetectionUnit> bboxes = new List<DetectionUnit>();
-            for (int i = 0; i < rois.Count; i++)
-            {
-                bboxes.Add(new DetectionUnit(rois[i], "test"));
-            }
             return bboxes;
         }
 
@@ -87,8 +86,8 @@ namespace ViewerLib
 
                 if (type is OperateType.DETECTION_LABEL_END)
                 {
-                    rois.Add((Rectangle)labelingRoi);
-                    selectedIndex = rois.Count - 1;
+                    bboxes.Add(new DetectionUnit((Rectangle)labelingRoi, ""));
+                    selectedIndex = bboxes.Count - 1;
                     labelingRoi = null;
                     labelFirstLocation = null;
                 }
@@ -98,9 +97,9 @@ namespace ViewerLib
         private void SelectRoi(Point location)
         {
             Point realLocation = ToRealLocation(location);
-            for (int i = 0; i < rois.Count; i++)
+            for (int i = 0; i < bboxes.Count; i++)
             {
-                if (rois[i].Contains(realLocation))
+                if (bboxes[i].Rect.Contains(realLocation))
                 {
                     selectedIndex = i;
                     return;
@@ -111,8 +110,8 @@ namespace ViewerLib
 
         private void DeleteSelectedRoi()
         {
-            if (selectedIndex >= 0 && rois.Count > selectedIndex)
-                rois.RemoveAt(selectedIndex);
+            if (selectedIndex >= 0 && bboxes.Count > selectedIndex)
+                bboxes.RemoveAt(selectedIndex);
             selectedIndex = -1;
         }
 
@@ -120,22 +119,22 @@ namespace ViewerLib
         {
             Point realLocation = ToRealLocation(location);
 
-            if (0 <= selectedIndex && selectedIndex < rois.Count)
+            if (0 <= selectedIndex && selectedIndex < bboxes.Count)
             {
-                if (type is OperateType.DETECTION_MOVE_ROI_BEGIN && rois[selectedIndex].Contains(realLocation))
+                if (type is OperateType.DETECTION_MOVE_ROI_BEGIN && bboxes[selectedIndex].Rect.Contains(realLocation))
                 {
-                    labelFirstLocation = rois[selectedIndex].Location;
+                    labelFirstLocation = bboxes[selectedIndex].Rect.Location;
                     moveRoiFirstLocation = realLocation;
                     moveSelectedIndex = selectedIndex;
                 }
                 else if (moveSelectedIndex != -1 && labelFirstLocation != null && moveRoiFirstLocation != null)
                 {
-                    Rectangle roi = rois[moveSelectedIndex];
+                    Rectangle roi = bboxes[moveSelectedIndex].Rect;
                     Point labelFirstLocation = (Point)this.labelFirstLocation;
                     Point moveRoiFirstLocation = (Point)this.moveRoiFirstLocation;
                     roi.X = labelFirstLocation.X + realLocation.X - moveRoiFirstLocation.X;
                     roi.Y = labelFirstLocation.Y + realLocation.Y - moveRoiFirstLocation.Y;
-                    rois[moveSelectedIndex] = roi;
+                    bboxes[moveSelectedIndex].Rect = roi;
                 }
             }
             if (type is OperateType.DETECTION_MOVE_ROI_END)
@@ -143,6 +142,11 @@ namespace ViewerLib
                 labelFirstLocation = moveRoiFirstLocation = null;
                 moveSelectedIndex = -1;
             }
+        }
+
+        private void RenameSelectedRoi(string name)
+        {
+            bboxes[selectedIndex].ClassName = name;
         }
 
         protected override Image GetImage()
@@ -158,8 +162,9 @@ namespace ViewerLib
             // Draw rectangle
             using (Graphics g = Graphics.FromImage(dstImage))
             {
-                foreach (Rectangle roi in rois)
+                foreach (DetectionUnit box in bboxes)
                 {
+                    Rectangle roi = box.Rect;
                     g.DrawRectangle(outterPen, ToWindowRect(roi));
                     g.DrawRectangle(innerPen, ToWindowRect(roi));
                 }
@@ -180,10 +185,10 @@ namespace ViewerLib
             }
 
             // Draw selected roi transparent
-            if (selectedIndex >= 0 && rois.Count > selectedIndex)
+            if (selectedIndex >= 0 && bboxes.Count > selectedIndex)
             {
                 int top, bottom, left, right;
-                Rectangle windowRect = ToWindowRect(rois[selectedIndex]);
+                Rectangle windowRect = ToWindowRect(bboxes[selectedIndex].Rect);
 
                 right = Math.Min(Math.Max(windowRect.Right, 1), dstImage.Width);
                 bottom = Math.Min(Math.Max(windowRect.Bottom, 1), dstImage.Height);
