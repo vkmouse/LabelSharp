@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Xml;
+using System.Xml.Linq;
 
 namespace ViewerLib
 {
@@ -20,6 +22,19 @@ namespace ViewerLib
                     break;
             }
         }
+        
+        public static List<DetectionUnit> Load(DetectionFileInfo info, AnnotationFormat format)
+        {
+            switch (format)
+            {
+                case AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC: // Load .xml
+                    return LoadPascalVOC(info);
+                case AnnotationFormat.ANNOTATION_FORMAT_TESSERACT: // Load .box
+                    return LoadTesseract(info);
+            }
+            return new List<DetectionUnit>();
+        }
+        
         private static void SavePascalVOC(DetectionFileInfo info)
         {
             XmlDocument doc = new XmlDocument();
@@ -92,6 +107,58 @@ namespace ViewerLib
 
             string savePath = Path.ChangeExtension(Path.Combine(info.saveDir, Path.GetFileName(info.imagePath)), ".box");
             File.WriteAllLines(savePath, lines);
+        }
+    
+        private static List<DetectionUnit> LoadPascalVOC(DetectionFileInfo info)
+        {
+            List<DetectionUnit> bboxes = new List<DetectionUnit>();
+            string loadPath = Path.ChangeExtension(Path.Combine(info.saveDir, Path.GetFileName(info.imagePath)), ".xml");
+            if (!File.Exists(loadPath))
+                return new List<DetectionUnit>();
+
+            XDocument doc = XDocument.Load(loadPath);
+            foreach (XElement element in doc.Element("annotation").Elements("object"))
+            {
+                XElement bndbox = element.Element("bndbox");
+                int XMin, XMax, YMin, YMax;
+                bool success = true;
+                success &= int.TryParse(bndbox.Element("xmin").Value, out XMin);
+                success &= int.TryParse(bndbox.Element("xmax").Value, out XMax);
+                success &= int.TryParse(bndbox.Element("ymin").Value, out YMin);
+                success &= int.TryParse(bndbox.Element("ymax").Value, out YMax);
+                if (!success)
+                    continue;
+                DetectionUnit box = new DetectionUnit(XMin, YMin, XMax - XMin, YMax - YMin, element.Element("name").Value);
+                bboxes.Add(box);
+            }
+
+            return bboxes;
+        }
+
+        private static List<DetectionUnit> LoadTesseract(DetectionFileInfo info)
+        {
+            List<DetectionUnit> bboxes = new List<DetectionUnit>();
+            string loadPath = Path.ChangeExtension(Path.Combine(info.saveDir, Path.GetFileName(info.imagePath)), ".box");
+            if (!File.Exists(loadPath))
+                return new List<DetectionUnit>();
+
+            foreach (string line in File.ReadAllLines(loadPath))
+            {
+                string[] tokens = line.Split(' ');
+                string className = tokens[0];
+                int XMin, XMax, YMinInv, YMaxInv;
+                bool success = true;
+                success &= int.TryParse(tokens[1], out XMin);
+                success &= int.TryParse(tokens[2], out YMaxInv);
+                success &= int.TryParse(tokens[3], out XMax);
+                success &= int.TryParse(tokens[4], out YMinInv);
+                if (!success)
+                    continue;
+                DetectionUnit box = new DetectionUnit(XMin, info.imageHeight - YMinInv, XMax - XMin, YMinInv - YMaxInv, className);
+                bboxes.Add(box);
+            }
+
+            return bboxes;
         }
     }
 }

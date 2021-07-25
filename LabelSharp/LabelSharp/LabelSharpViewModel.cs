@@ -180,7 +180,7 @@ namespace LabelSharp
 
         private void View_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if (e.KeyChar == 'w' && mode == LabelMode.LABEL_MODE_VIEW)
+            if ((e.KeyChar == 'w' || e.KeyChar == 'W') && mode == LabelMode.LABEL_MODE_VIEW)
             {
                 mode = LabelMode.LABEL_MODE_DETECTION;
                 view.Cursor = Cursors.Cross;
@@ -197,6 +197,10 @@ namespace LabelSharp
             if (e.KeyData == (Keys.S | Keys.Control))
             {
                 Save();
+            }
+            else if (e.KeyData == (Keys.O | Keys.Control))
+            {
+                Load();
             }
             else if (e.KeyData == Keys.Delete)
             {
@@ -218,6 +222,22 @@ namespace LabelSharp
             info.saveDir = Path.GetDirectoryName(files.Current);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
+        }
+
+        private void Load()
+        {
+            DetectionFileInfo info = new DetectionFileInfo()
+            {
+                imageWidth = _srcImage.Width,
+                imageHeight = _srcImage.Height,
+                imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
+                bboxes = (kernel as DetectionKernel).GetBndBoxes()
+            };
+            info.imagePath = files.Current;
+            info.saveDir = Path.GetDirectoryName(files.Current);
+            //var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
+            var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
+            pictureBox_Image = (kernel as DetectionKernel).SetBndBoxes(bboxes);
         }
     }
 }

@@ -74,6 +74,12 @@ namespace ViewerLib
             return bboxes;
         }
 
+        public Image SetBndBoxes(List<DetectionUnit> bboxes)
+        {
+            this.bboxes = bboxes;
+            return Image;
+        }
+
         private void Label(OperateType type, Point location)
         {
             Point realLocation = ToRealLocation(location);
