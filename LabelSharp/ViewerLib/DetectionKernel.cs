@@ -26,7 +26,7 @@ namespace ViewerLib
             bboxes = new List<DetectionUnit>();
         }
 
-        public override Image Operate(OperateType type, params object[] values)
+        public override void Operate(OperateType type, params object[] values)
         {
             base.Operate(type, values);
 
@@ -57,7 +57,7 @@ namespace ViewerLib
                     break;
             }
 
-            return Image;
+            GetImage();
         }
 
         public override void Clear()
@@ -74,10 +74,10 @@ namespace ViewerLib
             return bboxes;
         }
 
-        public Image SetBndBoxes(List<DetectionUnit> bboxes)
+        public void SetBndBoxes(List<DetectionUnit> bboxes)
         {
             this.bboxes = bboxes;
-            return Image;
+            GetImage();
         }
 
         private void Label(OperateType type, Point location)
@@ -162,31 +162,29 @@ namespace ViewerLib
             bboxes[selectedIndex].ClassName = name;
         }
 
-        protected override Image GetImage()
+        protected override void GetImage()
         {
-            Bitmap dstImage = base.GetImage() as Bitmap;
-            if (dstImage == null)
-                return null;
+            base.GetImage();
+            if (SrcImage == null)
+                return;
 
             // Draw rectangle
-            DrawBndBoxes(ref dstImage);
+            DrawBndBoxes();
 
             // Draw labeling transparent
             if (labelingRoi != null)
             {
-                DrawLabelingRoi(ref dstImage);
+                DrawLabelingRoi();
             }
 
             // Draw selected roi transparent
             if (selectedIndex >= 0 && bboxes.Count > selectedIndex)
             {
-                DrawSelectedRoi(ref dstImage);
+                DrawSelectedRoi();
             }
-
-            return dstImage;
         }
 
-        private void DrawBndBoxes(ref Bitmap inputOutputImage)
+        private void DrawBndBoxes()
         {
             if (_borderAndStringColors == null)
                 _borderAndStringColors = new Dictionary<string, Tuple<Color, Color>>();
@@ -209,7 +207,7 @@ namespace ViewerLib
             }
 
             // Draw rectangle
-            using (Graphics g = Graphics.FromImage(inputOutputImage))
+            using (Graphics g = Graphics.FromImage(DstImage))
             {
                 foreach (DetectionUnit box in bboxes)
                 {
@@ -224,10 +222,10 @@ namespace ViewerLib
             }
         }
 
-        private void DrawLabelingRoi(ref Bitmap inputOutputImage)
+        private void DrawLabelingRoi()
         {
             // Draw labeling rectangle
-            using (Graphics g = Graphics.FromImage(inputOutputImage))
+            using (Graphics g = Graphics.FromImage(DstImage))
             {
                 g.DrawRectangle(new Pen(Color.Black, _penWidth), ToWindowRect((Rectangle)labelingRoi));
             }
@@ -236,18 +234,18 @@ namespace ViewerLib
             Rectangle windowRect = ToWindowRect((Rectangle)labelingRoi);
             windowRect.Location = windowRect.Location - new Size((int)Math.Round(_penWidth / 2f) - 1, (int)Math.Round(_penWidth / 2f) - 1);
             windowRect.Size = windowRect.Size + new Size(_penWidth, _penWidth);
-            Paint.DrawTransparent(ref inputOutputImage, windowRect, _overlapColor, isInside: false);
+            Paint.DrawTransparent(ref DstImage, windowRect, _overlapColor, isInside: false);
         }
     
-        private void DrawSelectedRoi(ref Bitmap inputOutputImage)
+        private void DrawSelectedRoi()
         {
             // Check transparent region
             Rectangle windowRect = ToWindowRect(bboxes[selectedIndex].Rect);
-            int right = Math.Min(Math.Max(windowRect.Right, 1), inputOutputImage.Width);
-            int bottom = Math.Min(Math.Max(windowRect.Bottom, 1), inputOutputImage.Height);
+            int right = Math.Min(Math.Max(windowRect.Right, 1), DstRect.Width);
+            int bottom = Math.Min(Math.Max(windowRect.Bottom, 1), DstRect.Height);
             int top = Math.Max(Math.Min(windowRect.Top, bottom - 1), 0);
             int left = Math.Max(Math.Min(windowRect.Left, right - 1), 0);
-            if (top > inputOutputImage.Height || left > inputOutputImage.Width || bottom < 0 || right < 0)
+            if (top > DstRect.Height || left > DstRect.Width || bottom < 0 || right < 0)
                 return;
 
             // Draw transparent
@@ -255,7 +253,7 @@ namespace ViewerLib
                                        y: top + (int)Math.Round(_penWidth / 2f),
                                        width: right - left - _penWidth,
                                        height: bottom - top - _penWidth);
-            Paint.DrawTransparent(ref inputOutputImage, windowRect, _overlapColor, isInside: true);
+            Paint.DrawTransparent(ref DstImage, windowRect, _overlapColor, isInside: true);
         }
     }
 }

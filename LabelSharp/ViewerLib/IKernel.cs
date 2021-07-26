@@ -25,7 +25,7 @@ namespace ViewerLib
     public interface IKernel
     {
         Image Image { get; set; }
-        Image Operate(OperateType type, params object[] values);
+        void Operate(OperateType type, params object[] values);
         void Clear();
     }
 }

@@ -13,44 +13,34 @@ namespace LabelSharp
     {
         enum LabelMode { LABEL_MODE_VIEW, LABEL_MODE_DETECTION };
 
-        private LabelSharpView view;
-        private IKernel kernel;
-        private LabelMode mode;
+        private LabelSharpView _view;
+        private IKernel _kernel;
+        private LabelMode _mode;
         private Image _srcImage;
 
         // For demo variable
         private string path = $"C:\\Users\\{Environment.UserName}\\Pictures";
-        private IEnumerator<string> files;
-
-        private Image pictureBox_Image
-        {
-            set
-            {
-                if (!(view.pictureBox.BackgroundImage is null))
-                    view.pictureBox.BackgroundImage.Dispose();
-                view.pictureBox.BackgroundImage = value;
-            }
-        }
+        private IEnumerator<string> _files;
 
         public LabelSharpViewModel(LabelSharpView view)
         {
-            this.view = view;
-            view.KeyPreview = true;
+            _view = view;
+            _view.button.Click += new EventHandler(button_Click);
+            _view.pictureBox.MouseDown += new MouseEventHandler(pictureBox_MouseDown);
+            _view.pictureBox.MouseMove += new MouseEventHandler(pictureBox_MouseMove);
+            _view.pictureBox.MouseUp += new MouseEventHandler(pictureBox_MouseUp);
+            _view.pictureBox.MouseWheel += new MouseEventHandler(pictureBox_MouseWheel);
+            _view.pictureBox.MouseClick += new MouseEventHandler(pictureBox_MouseClick);
+            _view.pictureBox.Resize += new EventHandler(pictureBox_Resize);
+            _view.KeyPress += new KeyPressEventHandler(View_KeyPress);
+            _view.KeyDown += new KeyEventHandler(View_KeyDown);
+            _view.KeyPreview = true;
 
-            mode = LabelMode.LABEL_MODE_VIEW;
+            _kernel = new DetectionKernel(_view.pictureBox.Size);
+            _view.pictureBox.Image = _kernel.Image;
 
-            view.button.Click += new EventHandler(button_Click);
-            view.pictureBox.MouseDown += new MouseEventHandler(pictureBox_MouseDown);
-            view.pictureBox.MouseMove += new MouseEventHandler(pictureBox_MouseMove);
-            view.pictureBox.MouseUp += new MouseEventHandler(pictureBox_MouseUp);
-            view.pictureBox.MouseWheel += new MouseEventHandler(pictureBox_MouseWheel);
-            view.pictureBox.MouseClick += new MouseEventHandler(pictureBox_MouseClick);
-            view.pictureBox.Resize += new EventHandler(pictureBox_Resize);
-            view.KeyPress += new KeyPressEventHandler(View_KeyPress);
-            view.KeyDown += new KeyEventHandler(View_KeyDown);
-
-            kernel = new DetectionKernel(view.pictureBox.Size);
-            files = Directory.GetFiles(path).ToList().GetEnumerator();
+            _mode = LabelMode.LABEL_MODE_VIEW;
+            _files = Directory.GetFiles(path).ToList().GetEnumerator();
         }
 
         private void button_Click(object sender, EventArgs e)
@@ -58,45 +48,47 @@ namespace LabelSharp
             bool hasNext;
             do
             {
-                hasNext = files.MoveNext();
-                if (Path.GetExtension(files.Current) is ".png" ||
-                    Path.GetExtension(files.Current) is ".bmp" ||
-                    Path.GetExtension(files.Current) is ".jpg")
+                hasNext = _files.MoveNext();
+                if (Path.GetExtension(_files.Current) is ".png" ||
+                    Path.GetExtension(_files.Current) is ".bmp" ||
+                    Path.GetExtension(_files.Current) is ".jpg")
                 {
-                    kernel.Clear();
+                    _kernel.Clear();
                     if (_srcImage != null)
                         _srcImage.Dispose();
-                        _srcImage = Image.FromFile(files.Current);
-                    kernel.Image = _srcImage;
-                    pictureBox_Image = kernel.Image;
+                    _srcImage = Image.FromFile(_files.Current);
+                    _kernel.Image = _srcImage;
                     break;
                 }
             } while (hasNext);
 
             if (!hasNext)
             {
-                files.Dispose();
-                files = Directory.GetFiles(path).ToList().GetEnumerator();
+                _files.Dispose();
+                _files = Directory.GetFiles(path).ToList().GetEnumerator();
             }
+
+            _view.pictureBox.Refresh();
         }
 
         private void pictureBox_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (mode == LabelMode.LABEL_MODE_DETECTION)
+                if (_mode == LabelMode.LABEL_MODE_DETECTION)
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_LABEL_BEGIN, e.Location);
+                    _kernel.Operate(OperateType.DETECTION_LABEL_BEGIN, e.Location);
                 }
                 else if (Control.ModifierKeys == Keys.Control)
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_MOVE_ROI_BEGIN, e.Location);
+                    _kernel.Operate(OperateType.DETECTION_MOVE_ROI_BEGIN, e.Location);
                 }
                 else
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.VIEWER_PANNING_BEGIN, e.Location);
-                    view.Cursor = Cursors.SizeAll;
+                    _kernel.Operate(OperateType.VIEWER_PANNING_BEGIN, e.Location);
+                    _view.Cursor = Cursors.SizeAll;
                 }
+                _view.pictureBox.Refresh();
             }
         }
 
@@ -104,91 +96,93 @@ namespace LabelSharp
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (mode == LabelMode.LABEL_MODE_DETECTION)
+                if (_mode == LabelMode.LABEL_MODE_DETECTION)
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_LABEL_MOVE, e.Location);
+                    _kernel.Operate(OperateType.DETECTION_LABEL_MOVE, e.Location);
                 }
                 else if (Control.ModifierKeys == Keys.Control)
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_MOVE_ROI_MOVE, e.Location);
+                    _kernel.Operate(OperateType.DETECTION_MOVE_ROI_MOVE, e.Location);
                 }
                 else
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.VIEWER_PANNING_MOVE, e.Location);
+                    _kernel.Operate(OperateType.VIEWER_PANNING_MOVE, e.Location);
                 }
+                _view.pictureBox.Refresh();
             }
-
-            view.pictureBox.Refresh();
         }
 
         private void pictureBox_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (mode == LabelMode.LABEL_MODE_DETECTION)
+                if (_mode == LabelMode.LABEL_MODE_DETECTION)
                 {
-                    mode = LabelMode.LABEL_MODE_VIEW;
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_LABEL_END, e.Location);
+                    _mode = LabelMode.LABEL_MODE_VIEW;
+                    _kernel.Operate(OperateType.DETECTION_LABEL_END, e.Location);
 
-                    bool isCancel = LabelWindowView.Show(view.PointToScreen(view.pictureBox.Location) + (Size)e.Location);
+                    bool isCancel = LabelWindowView.Show(_view.PointToScreen(_view.pictureBox.Location) + (Size)e.Location);
                     if (isCancel)
                     {
-                        pictureBox_Image = kernel.Operate(OperateType.DETECTION_DELETE_ROI);
+                        _kernel.Operate(OperateType.DETECTION_DELETE_ROI);
                     }
                     else
                     {
-                        pictureBox_Image = kernel.Operate(OperateType.DETECTION_RENAME_ROI, LabelWindowView.ClassName);
+                        _kernel.Operate(OperateType.DETECTION_RENAME_ROI, LabelWindowView.ClassName);
                     }
                 }
                 else if (Control.ModifierKeys == Keys.Control)
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.DETECTION_MOVE_ROI_END, e.Location);
+                    _kernel.Operate(OperateType.DETECTION_MOVE_ROI_END, e.Location);
                 }
                 else
                 {
-                    pictureBox_Image = kernel.Operate(OperateType.VIEWER_PANNING_END, e.Location);
+                    _kernel.Operate(OperateType.VIEWER_PANNING_END, e.Location);
                 }
+                _view.Cursor = Cursors.Default;
+                _view.pictureBox.Refresh();
             }
-            view.Cursor = Cursors.Default;
-            view.pictureBox.Refresh();
         }
 
         private void pictureBox_MouseWheel(object sender, MouseEventArgs e)
         {
             if (Control.ModifierKeys == Keys.Control && e.Delta > 0)
             {
-                pictureBox_Image = kernel.Operate(OperateType.VIEWER_ZOOM_IN, e.Location);
+                _kernel.Operate(OperateType.VIEWER_ZOOM_IN, e.Location);
             }
             else if (Control.ModifierKeys == Keys.Control && e.Delta < 0)
             {
-                pictureBox_Image = kernel.Operate(OperateType.VIEWER_ZOOM_OUT, e.Location);
+                _kernel.Operate(OperateType.VIEWER_ZOOM_OUT, e.Location);
             }
+            _view.pictureBox.Refresh();
         }
 
         private void pictureBox_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                pictureBox_Image = kernel.Operate(OperateType.DETECTION_SELECT_ROI, e.Location);
+                _kernel.Operate(OperateType.DETECTION_SELECT_ROI, e.Location);
+                _view.pictureBox.Refresh();
             }
         }
 
         private void pictureBox_Resize(object sender, EventArgs e)
         {
-            pictureBox_Image = kernel.Operate(OperateType.VIEWER_RESIZE, view.pictureBox.Size); 
+            _kernel.Operate(OperateType.VIEWER_RESIZE, _view.pictureBox.Size);
+            _view.pictureBox.Refresh();
         }
 
         private void View_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if ((e.KeyChar == 'w' || e.KeyChar == 'W') && mode == LabelMode.LABEL_MODE_VIEW)
+            if ((e.KeyChar == 'w' || e.KeyChar == 'W') && _mode == LabelMode.LABEL_MODE_VIEW)
             {
-                mode = LabelMode.LABEL_MODE_DETECTION;
-                view.Cursor = Cursors.Cross;
+                _mode = LabelMode.LABEL_MODE_DETECTION;
+                _view.Cursor = Cursors.Cross;
             }
             else
             {
-                mode = LabelMode.LABEL_MODE_VIEW;
-                view.Cursor = Cursors.Default;
+                _mode = LabelMode.LABEL_MODE_VIEW;
+                _view.Cursor = Cursors.Default;
             }
         }
         
@@ -204,9 +198,9 @@ namespace LabelSharp
             }
             else if (e.KeyData == Keys.Delete)
             {
-                pictureBox_Image = kernel.Operate(OperateType.DETECTION_DELETE_ROI);
-                view.pictureBox.Refresh();
+                _kernel.Operate(OperateType.DETECTION_DELETE_ROI);
             }
+            _view.pictureBox.Refresh();
         }
 
         private void Save()
@@ -216,10 +210,10 @@ namespace LabelSharp
                 imageWidth = _srcImage.Width,
                 imageHeight = _srcImage.Height,
                 imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
-                bboxes = (kernel as DetectionKernel).GetBndBoxes()
+                bboxes = (_kernel as DetectionKernel).GetBndBoxes()
             };
-            info.imagePath = files.Current;
-            info.saveDir = Path.GetDirectoryName(files.Current);
+            info.imagePath = _files.Current;
+            info.saveDir = Path.GetDirectoryName(_files.Current);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
         }
@@ -231,13 +225,13 @@ namespace LabelSharp
                 imageWidth = _srcImage.Width,
                 imageHeight = _srcImage.Height,
                 imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
-                bboxes = (kernel as DetectionKernel).GetBndBoxes()
+                bboxes = (_kernel as DetectionKernel).GetBndBoxes()
             };
-            info.imagePath = files.Current;
-            info.saveDir = Path.GetDirectoryName(files.Current);
+            info.imagePath = _files.Current;
+            info.saveDir = Path.GetDirectoryName(_files.Current);
             //var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
             var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
-            pictureBox_Image = (kernel as DetectionKernel).SetBndBoxes(bboxes);
+            (_kernel as DetectionKernel).SetBndBoxes(bboxes);
         }
     }
 }

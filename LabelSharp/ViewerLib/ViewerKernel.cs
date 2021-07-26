@@ -13,20 +13,25 @@ namespace ViewerLib
         protected float ZoomFactor;
         protected Bitmap SrcImage = null;
         protected Bitmap DstImage = null;
+        protected Bitmap PreDstImage = null;
         protected RectangleF SrcRect;
         protected Rectangle DstRect;
         protected RectangleF? PreSrcRect = null;
         protected Rectangle? PreDstRect = null;
         private PointF? _panningFirstLocation = null;
-
+        
         public ViewerKernel(Size size)
         {
             DstRect = new Rectangle(0, 0, size.Width, size.Height);
+            DstImage = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
+                                  System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height,
+                                  System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            PreDstImage = new Bitmap(DstImage.Width, DstImage.Height, DstImage.PixelFormat);
         }
 
         public Image Image
         {
-            get => GetImage();
+            get => DstImage;
             set
             {
                 if (SrcImage != null)
@@ -34,11 +39,11 @@ namespace ViewerLib
                 SrcImage = value as Bitmap;
                 PreSrcRect = null;
                 PreDstRect = null;
-                Zoom(OperateType.VIEWER_ZOOM_FIT);
+                Operate(OperateType.VIEWER_ZOOM_FIT);
             }
         }
 
-        public virtual Image Operate(OperateType type, params object[] values)
+        public virtual void Operate(OperateType type, params object[] values)
         {
             switch (type)
             {
@@ -62,14 +67,16 @@ namespace ViewerLib
                     break;
             }
 
-            return Image;
+            GetImage();
         }
 
         public virtual void Clear()
         {
-            SrcImage = DstImage = null;
+            SrcImage = null;
             PreSrcRect = PreDstRect = null;
             _panningFirstLocation = null;
+            Paint.Clean(ref DstImage, DstRect);
+            Paint.Clean(ref PreDstImage, DstRect);
             return;
         }
 
@@ -164,10 +171,10 @@ namespace ViewerLib
             return new Rectangle(location, size);
         }
 
-        protected virtual Image GetImage()
+        protected virtual void GetImage()
         {
             if (SrcImage == null)
-                return null;
+                return;
 
             // Update srcRect
             SrcRect.Width = DstRect.Width * 100 / ZoomFactor;
@@ -176,16 +183,18 @@ namespace ViewerLib
             SrcRect.Y = Math.Max(Math.Min(SrcRect.Y, SrcImage.Height - SrcRect.Height), 0);
 
             // Update dstImage
-            if (DstImage == null || PreSrcRect != SrcRect || PreDstRect != DstRect)
+            if (PreSrcRect != SrcRect || PreDstRect != DstRect)
             {
-                if (DstImage != null)
-                    DstImage.Dispose();
-                DstImage = Paint.DrawImage(SrcImage, SrcRect, DstRect);
+                Paint.Clean(ref DstImage, DstRect);
+                Paint.DrawImage(SrcImage, SrcRect, DstRect, ref DstImage);
                 PreSrcRect = SrcRect;
                 PreDstRect = DstRect;
+                Paint.CopyTo(DstImage, ref PreDstImage, DstRect);
             }
-
-            return DstImage.Clone(new Rectangle(0, 0, DstImage.Width, DstImage.Height), DstImage.PixelFormat);
+            else
+            {
+                Paint.CopyTo(PreDstImage, ref DstImage, DstRect);
+            }
         }
     }
 }
