@@ -98,11 +98,21 @@ namespace ViewerLib
         }
         public unsafe static void DrawTransparent(ref Bitmap inputOutputImage, Rectangle region, Color overlapColor, bool isInside = true)
         {
-            BitmapData bmpData = inputOutputImage.LockBits(new Rectangle(0, 0, inputOutputImage.Width, inputOutputImage.Height), ImageLockMode.ReadWrite, inputOutputImage.PixelFormat);
             int xmin = region.Left;
             int ymin = region.Top;
             int xmax = region.Right;
             int ymax = region.Bottom;
+
+            if (!isInside)
+            {
+                DrawTransparent(ref inputOutputImage, new Rectangle(0, 0, inputOutputImage.Width, ymin), overlapColor);
+                DrawTransparent(ref inputOutputImage, new Rectangle(0, ymax, inputOutputImage.Width, inputOutputImage.Height - ymax), overlapColor);
+                DrawTransparent(ref inputOutputImage, new Rectangle(0, ymin, xmin, ymax - ymin), overlapColor);
+                DrawTransparent(ref inputOutputImage, new Rectangle(xmax, ymin, inputOutputImage.Width - xmax, ymax - ymin), overlapColor);
+                return;
+            }
+
+            BitmapData bmpData = inputOutputImage.LockBits(new Rectangle(0, 0, inputOutputImage.Width, inputOutputImage.Height), ImageLockMode.ReadWrite, inputOutputImage.PixelFormat);
             float A = 1 - overlapColor.A / 255f;
             float R = overlapColor.R * overlapColor.A / 255f;
             float G = overlapColor.G * overlapColor.A / 255f;
@@ -114,20 +124,15 @@ namespace ViewerLib
                 Action<int> action = new Action<int>(y =>
                 {
                     byte* offset = dst + y * bmpData.Stride;
-                    if ((ymin <= y && y < ymax) != isInside)
-                        return;
-                    for (int x = 0; x < bmpData.Width; x++)
+                    for (int x = xmin; x < xmax; x++)
                     {
-                        if ((xmin <= x && x < xmax) == isInside)
-                        {
-                            byte* dstPixel = offset + x * 4;
-                            *(dstPixel + 0) = (byte)(*(dstPixel + 0) * A + B);
-                            *(dstPixel + 1) = (byte)(*(dstPixel + 1) * A + G);
-                            *(dstPixel + 2) = (byte)(*(dstPixel + 2) * A + R);
-                        }
+                        byte* dstPixel = offset + x * 4;
+                        *(dstPixel + 0) = (byte)(*(dstPixel + 0) * A + B);
+                        *(dstPixel + 1) = (byte)(*(dstPixel + 1) * A + G);
+                        *(dstPixel + 2) = (byte)(*(dstPixel + 2) * A + R);
                     }
                 });
-                Parallel.For(0, bmpData.Height, action);
+                Parallel.For(ymin, ymax, action);
             }
             inputOutputImage.UnlockBits(bmpData);
         }
