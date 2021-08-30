@@ -19,13 +19,18 @@ namespace LabelSharp
         private Image _srcImage;
 
         // For demo variable
-        private string path = $"C:\\Users\\{Environment.UserName}\\Pictures";
-        private IEnumerator<string> _files;
+        private static readonly List<string> _imageExts = new List<string> { 
+            ".JPG", 
+            ".JPEG", 
+            ".BMP", 
+            ".PNG" 
+        };
+        private string _path = $"C:\\Users\\{Environment.UserName}\\Pictures";
+        private string _filename;
 
         public LabelSharpViewModel(LabelSharpView view)
         {
             _view = view;
-            _view.button.Click += new EventHandler(button_Click);
             _view.pictureBox.MouseDown += new MouseEventHandler(pictureBox_MouseDown);
             _view.pictureBox.MouseMove += new MouseEventHandler(pictureBox_MouseMove);
             _view.pictureBox.MouseUp += new MouseEventHandler(pictureBox_MouseUp);
@@ -35,40 +40,16 @@ namespace LabelSharp
             _view.KeyPress += new KeyPressEventHandler(View_KeyPress);
             _view.KeyDown += new KeyEventHandler(View_KeyDown);
             _view.KeyPreview = true;
+            _view.btnZoomFactor.TextChanged += new EventHandler(CustomTextBoxButton_TextChanged);
 
             _kernel = new DetectionKernel(_view.pictureBox.Size);
             _view.pictureBox.Image = _kernel.Image;
 
             _mode = LabelMode.LABEL_MODE_VIEW;
-            _files = Directory.GetFiles(path).ToList().GetEnumerator();
-        }
-
-        private void button_Click(object sender, EventArgs e)
-        {
-            bool hasNext;
-            do
-            {
-                hasNext = _files.MoveNext();
-                if (Path.GetExtension(_files.Current) is ".png" ||
-                    Path.GetExtension(_files.Current) is ".bmp" ||
-                    Path.GetExtension(_files.Current) is ".jpg")
-                {
-                    _kernel.Clear();
-                    if (_srcImage != null)
-                        _srcImage.Dispose();
-                    _srcImage = Image.FromFile(_files.Current);
-                    _kernel.Image = _srcImage;
-                    break;
-                }
-            } while (hasNext);
-
-            if (!hasNext)
-            {
-                _files.Dispose();
-                _files = Directory.GetFiles(path).ToList().GetEnumerator();
-            }
-
-            _view.pictureBox.Refresh();
+            _view.lstFileList.DataSource = Directory.GetFiles(_path).Where(x => _imageExts.Contains(Path.GetExtension(x).ToUpper()))
+                                                                    .Select(x => Path.GetFileName(x))                                                                   
+                                                                    .ToList();
+            _view.lstFileList.SelectedValueChanged += new EventHandler(lstFileList_SelectedValueChanged);
         }
 
         private void pictureBox_MouseDown(object sender, MouseEventArgs e)
@@ -203,6 +184,23 @@ namespace LabelSharp
             _view.pictureBox.Refresh();
         }
 
+        private void lstFileList_SelectedValueChanged(object sender, EventArgs e)
+        {
+            _filename = Path.Combine(_path, (string)_view.lstFileList.SelectedItem);
+            _kernel.Clear();
+            if (_srcImage != null)
+                _srcImage.Dispose();
+            _srcImage = Image.FromFile(_filename);
+            _kernel.Image = _srcImage;
+            _view.pictureBox.Refresh();
+        }
+
+        private void CustomTextBoxButton_TextChanged(object sender, EventArgs e)
+        {
+            int result = int.TryParse(_view.btnZoomFactor.LabelText, out result) ? result : 100;
+            _view.btnZoomFactor.LabelText = $"{result}%";
+        }
+
         private void Save()
         {
             DetectionFileInfo info = new DetectionFileInfo()
@@ -212,8 +210,8 @@ namespace LabelSharp
                 imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
                 bboxes = (_kernel as DetectionKernel).GetBndBoxes()
             };
-            info.imagePath = _files.Current;
-            info.saveDir = Path.GetDirectoryName(_files.Current);
+            info.imagePath = _filename;
+            info.saveDir = Path.GetDirectoryName(_filename);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
             DetectionFile.Save(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
         }
@@ -227,8 +225,8 @@ namespace LabelSharp
                 imageDepth = _srcImage.PixelFormat is PixelFormat.Format8bppIndexed ? 1 : 3,
                 bboxes = (_kernel as DetectionKernel).GetBndBoxes()
             };
-            info.imagePath = _files.Current;
-            info.saveDir = Path.GetDirectoryName(_files.Current);
+            info.imagePath = _filename;
+            info.saveDir = Path.GetDirectoryName(_filename);
             //var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_TESSERACT);
             var bboxes = DetectionFile.Load(info, AnnotationFormat.ANNOTATION_FORMAT_PASCAL_VOC);
             (_kernel as DetectionKernel).SetBndBoxes(bboxes);
